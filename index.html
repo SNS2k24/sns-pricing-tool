@@ -21,6 +21,7 @@ header h1{font-size:15px;font-weight:700;white-space:nowrap}
 .hbadge{font-size:11px;background:rgba(255,255,255,.2);padding:2px 7px;border-radius:9px;white-space:nowrap}
 .hbadge.green{background:rgba(39,174,96,.5)}
 .hbadge.amber{background:rgba(230,126,34,.5)}
+.hbadge.red{background:rgba(192,57,43,.6)}
 .hsync{display:flex;gap:6px;align-items:center;margin-left:auto}
 nav{background:var(--p);display:flex;padding:0 10px;overflow-x:auto}
 .nav-btn{color:rgba(255,255,255,.7);border:none;background:none;padding:9px 13px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
@@ -509,7 +510,7 @@ function str(id){return $id(id).value.trim();}
 const SUPA_URL='https://kkqrykvfoesavoeqrnhq.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrcXJ5a3Zmb2VzYXZvZXFybmhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTc3OTcsImV4cCI6MjA5NjIzMzc5N30.yy0bt65ohc9x0ShDl6wBtJNt9G8TKdkY-dIfW11AG48';
 const supa=window.supabase.createClient(SUPA_URL,SUPA_KEY);
-let cloudReady=false,syncTimer=null;
+let cloudReady=false,syncTimer=null,cloudFailCount=0;
 
 function dbSave(){
   try{localStorage.setItem('sns_db4',JSON.stringify(db));}catch(x){}
@@ -529,8 +530,15 @@ async function pushCloud(){
     if(jRows.length)ops.push(supa.from('jobs').upsert(jRows,{onConflict:'id'}));
     if(tRows.length)ops.push(supa.from('templates').upsert(tRows,{onConflict:'id'}));
     await Promise.all(ops);
-    syncStampSave();updateSyncBadge();
-  }catch(err){console.warn('Cloud push failed:',err);}
+    syncStampSave(new Date().toISOString());updateSyncBadge();
+    cloudFailCount=0;
+  }catch(err){
+    cloudFailCount=(cloudFailCount||0)+1;
+    console.warn('Cloud push failed:',err);
+    const el=$id('hdr-sync');
+    if(el){el.textContent='⚠ Sync failed';el.className='hbadge red';el.title='Cloud sync failed — job saved locally.\nClick to retry.';}
+    if(cloudFailCount<4){syncTimer=setTimeout(pushCloud,cloudFailCount*5000);}
+  }
 }
 
 async function cloudDel(table,id){
@@ -569,6 +577,11 @@ async function dbLoad(){
     if(!db.parts||!db.parts.length)db.parts=SEED.map(p=>({...p}));
     if(!db.jobs)db.jobs=[];
     if(!db.templates)db.templates=[];
+    // Show cloud offline banner
+    setTimeout(()=>{
+      const el=$id('hdr-sync');
+      if(el){el.textContent='⚠ Cloud offline';el.className='hbadge red';el.title='Could not reach cloud database.\nShowing locally saved data.\nClick to retry.';}
+    },100);
   }
 }
 function curSave(){try{localStorage.setItem('sns_cur4',JSON.stringify(cur));}catch(x){}}
@@ -599,13 +612,18 @@ function updateHdr(){
 
 function updateSyncBadge(){
   const ts=syncStampLoad(),el=$id('hdr-sync');
-  if(!ts){el.textContent='⏱ Never synced';el.className='hbadge amber';return;}
-  const diff=Date.now()-new Date(ts).getTime();
+  if(!el)return;
+  // Attach force-sync click handler once
+  if(!el._syncWired){el._syncWired=true;el.style.cursor='pointer';el.title='Click to force sync now';el.addEventListener('click',async()=>{if(cloudReady){cloudFailCount=0;el.textContent='↻ Syncing…';el.className='hbadge amber';pushCloud();}else{el.textContent='↻ Reconnecting…';el.className='hbadge amber';await dbLoad();renderParts();renderJobTable();renderSaved();renderReport();renderTemplates();updateHdr();updateSyncBadge();}});}
+  if(!ts||ts==='undefined'){el.textContent='⏱ Never synced';el.className='hbadge amber';return;}
+  const d=new Date(ts);
+  if(isNaN(d.getTime())){el.textContent='⏱ Never synced';el.className='hbadge amber';return;}
+  const diff=Date.now()-d.getTime();
   const mins=Math.floor(diff/60000),hrs=Math.floor(mins/60),days=Math.floor(hrs/24);
   const ago=days>0?days+'d ago':hrs>0?hrs+'h ago':mins>0?mins+'m ago':'Just now';
   el.textContent='✓ Synced '+ago;
   el.className='hbadge '+(days>3?'amber':'green');
-  el.title='Last synced: '+new Date(ts).toLocaleString();
+  el.title='Last synced: '+d.toLocaleString()+'\nClick to force sync';
 }
 
 // ── NAV ──
