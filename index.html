@@ -1635,15 +1635,18 @@ init();
 if('serviceWorker' in navigator){
   let refreshing=false;
   navigator.serviceWorker.register('./sw.js').then(reg=>{
+    // Force immediate update check on every app open (bypasses 24h SW cache)
+    reg.update();
+    // Also re-check whenever the app comes back into focus
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)reg.update();});
     reg.addEventListener('updatefound',()=>{
       const nw=reg.installing;
       nw.addEventListener('statechange',()=>{
         if(nw.state==='installed'&&navigator.serviceWorker.controller){
           const t=document.getElementById('pwa-toast');
-          t.style.display='flex';
-          document.getElementById('pwa-reload').addEventListener('click',()=>{
-            nw.postMessage('skipWaiting');
-          });
+          if(t)t.style.display='flex';
+          const btn=document.getElementById('pwa-reload');
+          if(btn)btn.addEventListener('click',()=>{nw.postMessage('skipWaiting');});
         }
       });
     });
