@@ -242,7 +242,7 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
         <ul class="acl" id="job-ac" style="display:none"></ul>
       </div>
     </div>
-    <div class="fg"><label>QTY</label><input type="number" id="job-qty" value="1" min="1" style="width:65px"></div>
+    <div class="fg"><label>QTY</label><input type="number" id="job-qty" value="1" min="0" style="width:65px"></div>
     <div class="fg"><label>Buy Price Override ($)</label><input type="number" id="job-bp" placeholder="Auto" min="0" step="0.01" style="width:115px"></div>
     <div class="fg"><label>&nbsp;</label><button class="btn bs" id="btn-add-line">+ Add to Job</button></div>
     <div class="fg"><label>&nbsp;</label><button class="btn bo" id="btn-load-tpl">📁 Templates</button></div>
@@ -582,6 +582,36 @@ async function dbLoad(){
       const el=$id('hdr-sync');
       if(el){el.textContent='⚠ Cloud offline';el.className='hbadge red';el.title='Could not reach cloud database.\nShowing locally saved data.\nClick to retry.';}
     },100);
+    // Auto-retry in background — try to reconnect silently
+    setTimeout(retryCloudLoad,15000);
+  }
+}
+
+async function retryCloudLoad(){
+  if(cloudReady)return; // already connected
+  try{
+    const[pr,jr,tr]=await Promise.all([
+      supa.from('parts').select('id,data'),
+      supa.from('jobs').select('id,data'),
+      supa.from('templates').select('id,data')
+    ]);
+    if(pr.error||jr.error||tr.error)throw new Error('retry failed');
+    if(pr.data&&pr.data.length)db.parts=pr.data.map(r=>r.data);
+    db.jobs=jr.data?jr.data.map(r=>r.data).sort((a,b)=>new Date(b.savedAt||0)-new Date(a.savedAt||0)):[];
+    db.templates=tr.data?tr.data.map(r=>r.data):[];
+    if(!db.templates)db.templates=[];
+    cloudReady=true;
+    cloudFailCount=0;
+    localStorage.setItem('sns_db4',JSON.stringify(db));
+    // Re-render everything with fresh cloud data
+    renderParts();renderJobTable();renderSaved();renderReport();renderTemplates();updateHdr();updateSyncBadge();
+    // Show brief toast to let user know
+    const el=$id('hdr-sync');
+    if(el){el.textContent='☁ Reconnected';el.className='hbadge green';setTimeout(updateSyncBadge,2000);}
+  }catch(e){
+    // Still offline — retry again in 30s, then give up
+    if(!window._retryCount)window._retryCount=1;
+    if(window._retryCount<4){window._retryCount++;setTimeout(retryCloudLoad,30000);}
   }
 }
 function curSave(){try{localStorage.setItem('sns_cur4',JSON.stringify(cur));}catch(x){}}
@@ -1076,7 +1106,7 @@ function showPartInfo(p){
 function gs(){return{mp:num('job-markup')/100,rp:num('job-risk')/100,id:num('job-instdisc')/100,th:num('job-travel'),mc:num('job-misc')||0,cc:num('job-contractor'),hr:num('job-rate')||150,act:num('job-actual')||0};}
 
 function calcLine(l,s){
-  const bp=l.bpo!=null?l.bpo:(l.buy_price||0),qty=l.qty||1;
+  const bp=l.bpo!=null?l.bpo:(l.buy_price||0),qty=l.qty!=null?l.qty:1;
   // ic = TOTAL install cost for this line (time × qty ÷ 60 × rate)
   const ic_auto=Math.round((l.total_time_min||0)*qty/60*(s.hr||150)*100)/100;
   const ic=l.ico!=null?l.ico:ic_auto;
@@ -1090,7 +1120,7 @@ function calcLine(l,s){
 function addLine(){
   if(!selSNS){alert('Select a part first.');return;}
   const p=db.parts.find(x=>x.sns_pn===selSNS);if(!p)return;
-  const qty=parseInt($id('job-qty').value)||1,bpo=parseFloat($id('job-bp').value)||null;
+  const _qraw=parseInt($id('job-qty').value);const qty=isNaN(_qraw)||_qraw<0?1:_qraw;const bpo=parseFloat($id('job-bp').value)||null;
   const secId=parseInt($id('section-select').value)||null;
   const newLine={id:Date.now(),type:'part',sns_pn:p.sns_pn,description:p.description,buy_price:p.buy_price,total_time_min:p.total_time_min,qty,bpo};
   if(secId){
@@ -1153,7 +1183,7 @@ function updateSectionSelector(){
 }
 
 function remLine(id){cur.lines=cur.lines.filter(l=>l.id!==id);curSave();renderJobTable();}
-function updQty(id,v){const l=cur.lines.find(x=>x.id===id);if(l){l.qty=Math.max(1,parseInt(v)||1);curSave();renderJobTable();}}
+function updQty(id,v){const l=cur.lines.find(x=>x.id===id);if(l){const n=parseInt(v);l.qty=isNaN(n)||n<0?0:n;curSave();renderJobTable();}}
 function updBP(id,v){
   const l=cur.lines.find(x=>x.id===id);if(!l)return;
   const val=parseFloat(v)||null;
@@ -1206,7 +1236,7 @@ function renderJobTable(){
         <td><span class="badge bb">${e(l.sns_pn)}</span></td>
         <td style="max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(l.description)}</td>
         <td class="nr"><input type="number" value="${(l.bpo!=null?l.bpo:l.buy_price||0).toFixed(2)}" min="0" step="0.01" style="width:72px;text-align:right" data-id="${l.id}" data-field="bp"></td>
-        <td class="nr"><input type="number" value="${c.qty}" min="1" style="width:48px;text-align:right" data-id="${l.id}" data-field="qty"></td>
+        <td class="nr"><input type="number" value="${c.qty}" min="0" style="width:48px;text-align:right" data-id="${l.id}" data-field="qty"></td>
         <td class="nr" style="white-space:nowrap"><input type="number" value="${(c.mp*100).toFixed(1)}" min="0" max="200" step="0.5" style="width:58px;text-align:right;background:${l.mpo!=null?'#fff7ed':'var(--pl)'}" data-id="${l.id}" data-field="mp" title="${l.mpo!=null?'Override active (global='+((c.mp_auto||s.mp)*100).toFixed(0)+'%)':'Using global markup'}">%${l.mpo!=null?`<button style="font-size:10px;padding:1px 4px;border:none;background:#fee2e2;color:#991b1b;border-radius:3px;cursor:pointer;margin-left:2px" data-act="remmp" data-id="${l.id}" title="Reset to global (${(s.mp*100).toFixed(0)}%)">↺</button>`:''}</td>
         <td class="nr">$${c.uwm.toFixed(2)}</td>
         <td class="nr" style="white-space:nowrap"><input type="number" value="${c.ic.toFixed(2)}" min="0" step="0.01" style="width:72px;text-align:right;background:${l.ico!=null?'#fff7ed':'var(--pl)'}" data-id="${l.id}" data-field="ic" title="${l.ico!=null?'Override active (auto=$'+c.ic_auto.toFixed(2)+')':'Auto-calculated from install time'}">${l.ico!=null?`<button style="font-size:10px;padding:1px 4px;border:none;background:#fee2e2;color:#991b1b;border-radius:3px;cursor:pointer;margin-left:2px" data-act="remic" data-id="${l.id}" title="Reset to auto ($${c.ic_auto.toFixed(2)})">↺</button>`:''}</td>
@@ -1268,7 +1298,10 @@ function persistJob(){
   } else {
     db.jobs.unshift({id:Date.now(),...payload});
   }
-  dbSave();updateHdr();renderSaved();renderReport();
+  dbSave();
+  // Push to cloud immediately on job save — do not wait for debounce
+  if(cloudReady){clearTimeout(syncTimer);pushCloud();}
+  updateHdr();renderSaved();renderReport();
   alert('Job "'+nm+'" '+(existing>=0?'updated':'saved')+'! Remember to Export and upload to your shared OneDrive folder.');
 }
 
@@ -1501,7 +1534,7 @@ function tplSearchAC(){
 function addTplLine(){
   if(!selTplSNS){alert('Select a part first.');return;}
   const p=db.parts.find(x=>x.sns_pn===selTplSNS);if(!p)return;
-  const qty=parseInt($id('tpl-qty').value)||1;
+  const _tqraw=parseInt($id('tpl-qty').value);const qty=isNaN(_tqraw)||_tqraw<0?1:_tqraw;
   const ex=tplLines.findIndex(l=>l.sns_pn===p.sns_pn);
   if(ex>=0)tplLines[ex].qty+=qty;
   else tplLines.push({sns_pn:p.sns_pn,description:p.description,qty});
@@ -1655,6 +1688,10 @@ if('serviceWorker' in navigator){
     if(!refreshing){refreshing=true;location.reload();}
   });
 }
+// Flush any pending cloud push before page unloads
+window.addEventListener('beforeunload',()=>{
+  if(cloudReady&&syncTimer){clearTimeout(syncTimer);pushCloud();}
+});
 </script>
 </body>
 </html>

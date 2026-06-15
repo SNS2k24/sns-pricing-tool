@@ -1,6 +1,6 @@
 // SNS Job Pricing Tool — Service Worker
 // Bump CACHE_VERSION whenever you deploy an update
-const CACHE_VERSION = 'sns-pricing-v2';
+const CACHE_VERSION = 'sns-pricing-v3';
 const ASSETS = [
   './',
   './index.html',
