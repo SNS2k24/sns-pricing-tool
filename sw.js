@@ -1,6 +1,6 @@
 // SNS Job Pricing Tool — Service Worker
 // Bump CACHE_VERSION whenever you deploy an update
-const CACHE_VERSION = 'sns-pricing-v3';
+const CACHE_VERSION = 'sns-pricing-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -27,9 +27,13 @@ self.addEventListener('activate', e => {
   );
 });
 
-// ── Fetch: serve from cache, revalidate in background ────────────────────────
+// ── Fetch: cache local app assets only — never cache API calls ───────────────
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // Never intercept Supabase API calls — they must always hit the live database.
+  // Caching these was causing stale data to be served instead of cloud data.
+  const url = new URL(e.request.url);
+  if (url.hostname.endsWith('supabase.co')) return;
   e.respondWith(
     caches.open(CACHE_VERSION).then(cache =>
       cache.match(e.request).then(cached => {
