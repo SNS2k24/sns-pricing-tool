@@ -1595,7 +1595,7 @@ async function sendViaSmtp(){
         fromEmail:emailCfg.fromEmail||''
       }
     });
-    if(error)throw new Error(error.message||JSON.stringify(error));
+    if(error){let msg=error.message;try{const b=await error.context?.json();if(b?.error)msg=b.error;}catch{}throw new Error(msg);}
     if(st)st.textContent='✓ Sent successfully!';
   }catch(err){
     if(st)st.textContent='⚠ '+(err.message||'Send failed — function not yet deployed, see Email Settings.');
