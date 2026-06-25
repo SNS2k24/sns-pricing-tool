@@ -559,11 +559,10 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
 <div class="modal-bg" id="modal-smtp">
   <div class="modal" style="width:420px">
     <div class="mhd"><span>&#x2709; Email Settings</span><button class="mclose" data-close="modal-smtp">&times;</button></div>
-    <p style="font-size:11px;color:var(--g);margin-bottom:14px">Emails are sent via <strong>Resend</strong> directly from the browser. Use a <strong>Sending access only</strong> API key — if it were ever compromised, an attacker could only send emails (not access your account), and you can revoke it instantly from the Resend dashboard.</p>
-    <div class="fg" style="margin-bottom:8px"><label>Resend API Key</label><input type="password" id="smtp-api-key" style="width:100%" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off"></div>
+    <p style="font-size:11px;color:var(--g);margin-bottom:14px">Emails are sent via <strong>Resend</strong> through a Supabase Edge Function — your API key lives securely in Supabase secrets, never in the browser.</p>
     <div class="fg" style="margin-bottom:8px"><label>From Name</label><input type="text" id="smtp-from-name" style="width:100%" placeholder="Safe Nest Solutions"></div>
     <div class="fg" style="margin-bottom:10px"><label>From Email <span style="font-weight:400;color:var(--g)">(verified Resend domain — or leave blank to use onboarding@resend.dev for testing)</span></label><input type="email" id="smtp-from-email" style="width:100%" placeholder="purchasing@safenestsolutions.com.au"></div>
-    <p style="font-size:11px;color:var(--g);background:var(--bg);padding:9px 11px;border-radius:6px;margin-bottom:14px">&#x2139;&#xfe0f; Get your API key at <strong>resend.com</strong> → API Keys → Create → Sending access only. No domain verification needed to test — just leave From Email blank and Resend will send from their shared address.</p>
+    <p style="font-size:11px;color:var(--g);background:var(--bg);padding:9px 11px;border-radius:6px;margin-bottom:14px">&#x2139;&#xfe0f; One-time setup required: deploy the <code>send-quote</code> Edge Function to Supabase and set your Resend API key as a secret. See <code>supabase/functions/send-quote/DEPLOY.md</code>. No domain verification needed to test — leave From Email blank to use Resend's shared address.</p>
     <div style="display:flex;gap:7px;justify-content:flex-end">
       <button class="btn bo" data-close="modal-smtp">Cancel</button>
       <button class="btn bp" onclick="saveSmtpSettings()">Save</button>
@@ -1389,7 +1388,7 @@ function persistJob(){
 // ── SHOPPING LIST ──
 // ── Supplier & Quote Management ───────────────────────────────────────────
 let suppliersDB=[];
-let emailCfg={fromName:'Safe Nest Solutions',fromEmail:'',apiKey:''};
+let emailCfg={fromName:'Safe Nest Solutions',fromEmail:''};
 let _editSupIdx=-1;
 
 function suppLoad(){
@@ -1562,15 +1561,13 @@ function openSmtpModal(){
   smtpLoad();
   $id('smtp-from-name').value=emailCfg.fromName||'Safe Nest Solutions';
   $id('smtp-from-email').value=emailCfg.fromEmail||'';
-  $id('smtp-api-key').value=emailCfg.apiKey||'';
   openModal('modal-smtp');
 }
 
 function saveSmtpSettings(){
   emailCfg={
     fromName:($id('smtp-from-name').value||'').trim()||'Safe Nest Solutions',
-    fromEmail:($id('smtp-from-email').value||'').trim(),
-    apiKey:($id('smtp-api-key').value||'').trim()
+    fromEmail:($id('smtp-from-email').value||'').trim()
   };
   smtpSave();
   closeModal('modal-smtp');
@@ -1581,10 +1578,6 @@ async function sendViaSmtp(){
   smtpLoad();
   const st=$id('smtp-send-status');
   const btn=$id('btn-send-smtp');
-  if(!emailCfg.apiKey){
-    if(st)st.textContent='⚠ Add your Resend API key in Email Settings first.';
-    return;
-  }
   const selIdx=$id('quote-supplier').value;
   if(selIdx===''){if(st)st.textContent='⚠ Select a supplier first.';return;}
   const sup=suppliersDB[parseInt(selIdx)];
@@ -1592,24 +1585,20 @@ async function sendViaSmtp(){
   if(st)st.textContent='Sending…';
   if(btn)btn.disabled=true;
   try{
-    const fromAddr=emailCfg.fromEmail
-      ?(emailCfg.fromName?emailCfg.fromName+' <'+emailCfg.fromEmail+'>':emailCfg.fromEmail)
-      :'Safe Nest Solutions <onboarding@resend.dev>';
-    const res=await fetch('https://api.resend.com/emails',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+emailCfg.apiKey},
-      body:JSON.stringify({
-        from:fromAddr,
-        to:[sup.email],
+    const{data,error}=await supa.functions.invoke('send-quote',{
+      body:{
+        to:sup.email,
+        toName:sup.name,
         subject:$id('quote-subject').value||'Quote Request',
-        text:$id('quote-body').value||''
-      })
+        body:$id('quote-body').value||'',
+        fromName:emailCfg.fromName||'Safe Nest Solutions',
+        fromEmail:emailCfg.fromEmail||''
+      }
     });
-    const result=await res.json();
-    if(!res.ok)throw new Error(result.message||'Resend error '+res.status);
-    if(st)st.textContent='✓ Sent — email ID: '+result.id;
+    if(error)throw new Error(error.message||JSON.stringify(error));
+    if(st)st.textContent='✓ Sent successfully!';
   }catch(err){
-    if(st)st.textContent='⚠ '+(err.message||'Send failed');
+    if(st)st.textContent='⚠ '+(err.message||'Send failed — function not yet deployed, see Email Settings.');
   }finally{
     if(btn)btn.disabled=false;
   }
