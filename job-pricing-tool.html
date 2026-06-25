@@ -103,10 +103,9 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
 @media print{
   nav,#panel-parts,#panel-job,#panel-saved,#panel-templates,#panel-report,
   footer,#panel-shopping .stk-inp,
-  #panel-shopping th:nth-child(1),#panel-shopping td:nth-child(1),
+  #panel-shopping th:nth-child(3),#panel-shopping td:nth-child(3),
   #panel-shopping th:nth-child(4),#panel-shopping td:nth-child(4),
-  #panel-shopping th:nth-child(5),#panel-shopping td:nth-child(5),
-  #panel-shopping th:nth-child(7),#panel-shopping td:nth-child(7){display:none!important}
+  #panel-shopping th:nth-child(6),#panel-shopping td:nth-child(6){display:none!important}
   #panel-shopping{display:block!important}
   body{background:#fff}
   .tw{overflow:visible}
@@ -116,15 +115,6 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
 }
 #pwa-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;display:none;align-items:center;gap:10px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3)}
 #pwa-toast button{background:var(--p);color:#fff;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600}
-
-/* ── Supplier & Quote feature ──────────────────────────────── */
-.shop-cb{width:15px;height:15px;cursor:pointer;accent-color:var(--p);vertical-align:middle}
-.sup-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bdr)}
-.sup-row:last-child{border-bottom:none}
-#shop-sel-bar{background:var(--p);color:#fff;padding:8px 14px;border-radius:0 0 7px 7px;display:none;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;margin-top:6px}
-.quote-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
-.quote-tbl th{background:var(--bg);padding:5px 8px;text-align:left;font-size:11px;border-bottom:2px solid var(--bdr)}
-.quote-tbl td{padding:5px 8px;border-bottom:1px solid var(--bdr)}
 </style>
 </head>
 <body>
@@ -308,17 +298,14 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
 <!-- SHOPPING LIST -->
 <div id="panel-shopping" class="panel"><main>
 <div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;flex-wrap:wrap;gap:6px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
     <div class="ctitle" style="margin:0">Shopping List</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn bo bsm" onclick="openSupplierMgr()">👥 Suppliers</button>
-      <button class="btn bo bsm" onclick="openSmtpModal()">⚙️ SMTP</button>
+    <div style="display:flex;gap:6px">
       <button class="btn bo bsm" id="btn-print">🖨 Print</button>
       <button class="btn bo bsm" id="btn-shop-csv">⬇ CSV</button>
     </div>
   </div>
   <div id="shop-body"><div class="empty">Add items to a job to generate the shopping list.</div></div>
-  <div id="shop-sel-bar"><span id="shop-sel-count">0 items selected</span><button class="btn bsm" style="background:rgba(255,255,255,.25);color:#fff;border:1px solid rgba(255,255,255,.4);padding:4px 10px" onclick="openQuoteModal()">✉️ Request Quote</button><button class="btn bsm" style="background:none;color:rgba(255,255,255,.65);padding:4px 8px" onclick="shopToggleAll(false)">✕ Clear</button></div>
 </div>
 </main></div>
 
@@ -499,81 +486,6 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
     <div style="display:flex;gap:7px;justify-content:flex-end">
       <button class="btn bo" data-close="modal-confirm">Cancel</button>
       <button class="btn bd" id="mc-ok">Confirm</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- SUPPLIER MANAGEMENT MODAL -->
-<div class="modal-bg" id="modal-suppliers">
-  <div class="modal" style="width:520px">
-    <div class="mhd"><span>Manage Suppliers</span><button class="mclose" data-close="modal-suppliers">&times;</button></div>
-    <div id="sup-list-wrap" style="max-height:240px;overflow-y:auto;margin-bottom:4px"></div>
-    <hr style="margin:12px 0;border-color:var(--bdr)">
-    <div style="font-size:12px;font-weight:700;margin-bottom:8px" id="sup-form-title">Add Supplier</div>
-    <div class="frow" style="gap:8px;margin-bottom:8px">
-      <div class="fg" style="flex:2"><label>Name *</label><input type="text" id="sup-name" style="width:100%" placeholder="e.g. RS Components"></div>
-      <div class="fg" style="flex:3"><label>Email *</label><input type="email" id="sup-email" style="width:100%" placeholder="sales@supplier.com.au"></div>
-    </div>
-    <div style="display:flex;gap:7px;justify-content:flex-end">
-      <button class="btn bo bsm" id="sup-cancel-edit" style="display:none" onclick="cancelEditSupplier()">Cancel</button>
-      <button class="btn bp" onclick="saveSupplier()">Save Supplier</button>
-    </div>
-  </div>
-</div>
-
-<!-- QUOTE REQUEST MODAL -->
-<div class="modal-bg" id="modal-quote">
-  <div class="modal" style="width:650px">
-    <div class="mhd"><span>&#x2709; Request Quote</span><button class="mclose" data-close="modal-quote">&times;</button></div>
-    <div class="frow" style="gap:10px;margin-bottom:10px">
-      <div class="fg" style="flex:1">
-        <label>Send To (Supplier)</label>
-        <select id="quote-supplier" style="width:100%;padding:5px 7px;border:1px solid var(--bdr);border-radius:5px;font-size:13px" onchange="quoteSupplierChange()"></select>
-        <span style="font-size:11px;color:var(--g)">No suppliers? <a href="#" onclick="event.preventDefault();closeModal('modal-quote');openSupplierMgr()">Add one here</a></span>
-      </div>
-    </div>
-    <div class="fg" style="margin-bottom:8px"><label>Subject</label><input type="text" id="quote-subject" style="width:100%"></div>
-    <div class="fg" style="margin-bottom:12px">
-      <label>Email Body <span style="font-weight:400;color:var(--g)">(editable)</span></label>
-      <textarea id="quote-body" style="width:100%;height:210px;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--bdr);border-radius:5px;resize:vertical;line-height:1.5"></textarea>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <button class="btn bp" onclick="sendViaMailto()">&#x2709;&#xfe0f; Open in Email Client</button>
-      <button class="btn bo" onclick="copyQuoteBody()">&#x2398; Copy Body</button>
-    </div>
-    <details style="margin-top:14px">
-      <summary style="font-size:12px;font-weight:700;cursor:pointer;color:var(--p);user-select:none">&#x2699;&#xfe0f; Send Directly via SMTP</summary>
-      <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:6px;font-size:12px">
-        <p style="color:var(--g);margin-bottom:8px">Requires SMTP credentials. <a href="#" onclick="event.preventDefault();closeModal('modal-quote');openSmtpModal()">Configure SMTP settings &#x2192;</a></p>
-        <div style="display:flex;align-items:center;gap:10px">
-          <button class="btn bd bsm" id="btn-send-smtp" onclick="sendViaSmtp()">Send via SMTP</button>
-          <span id="smtp-send-status" style="font-size:12px"></span>
-        </div>
-        <p style="color:var(--g);font-size:11px;margin-top:8px">Note: SMTP sending from a browser routes through smtpjs.com relay. Use an app-specific password.</p>
-      </div>
-    </details>
-  </div>
-</div>
-
-<!-- SMTP SETTINGS MODAL -->
-<div class="modal-bg" id="modal-smtp">
-  <div class="modal" style="width:460px">
-    <div class="mhd"><span>&#x2699;&#xfe0f; Email / SMTP Settings</span><button class="mclose" data-close="modal-smtp">&times;</button></div>
-    <p style="font-size:11px;color:var(--g);margin-bottom:12px">Settings are stored locally on this device only. Use an app-specific password, not your main account password.</p>
-    <div class="frow" style="gap:8px;margin-bottom:8px">
-      <div class="fg" style="flex:3"><label>SMTP Host</label><input type="text" id="smtp-host" style="width:100%" placeholder="smtp.gmail.com"></div>
-      <div class="fg" style="flex:1"><label>Port</label><input type="number" id="smtp-port" style="width:100%" value="587" placeholder="587"></div>
-    </div>
-    <div class="fg" style="margin-bottom:8px"><label>Username / Email</label><input type="email" id="smtp-user" style="width:100%" placeholder="you@gmail.com"></div>
-    <div class="fg" style="margin-bottom:8px"><label>Password / App Password</label><input type="password" id="smtp-pass" style="width:100%" autocomplete="current-password"></div>
-    <div class="fg" style="margin-bottom:10px"><label>From Address <span style="font-weight:400;color:var(--g)">(shown to recipient)</span></label><input type="text" id="smtp-from" style="width:100%" placeholder="Safe Nest Solutions &lt;you@gmail.com&gt;"></div>
-    <label style="font-size:12px;display:flex;align-items:center;gap:7px;margin-bottom:14px;cursor:pointer">
-      <input type="checkbox" id="smtp-tls" checked> Use TLS / STARTTLS (recommended)
-    </label>
-    <div style="display:flex;gap:7px;justify-content:flex-end">
-      <button class="btn bo" data-close="modal-smtp">Cancel</button>
-      <button class="btn bp" onclick="saveSmtpSettings()">Save Settings</button>
     </div>
   </div>
 </div>
@@ -1394,258 +1306,23 @@ function persistJob(){
 }
 
 // ── SHOPPING LIST ──
-// ── Supplier & Quote Management ───────────────────────────────────────────
-let suppliersDB=[];
-let smtpCfg={host:'',port:587,user:'',pass:'',from:'',tls:true};
-let _editSupIdx=-1;
-
-function suppLoad(){
-  try{suppliersDB=JSON.parse(localStorage.getItem('sns_suppliers')||'[]');}catch{suppliersDB=[];}
-}
-function suppSave(){
-  localStorage.setItem('sns_suppliers',JSON.stringify(suppliersDB));
-}
-function smtpLoad(){
-  try{const s=JSON.parse(localStorage.getItem('sns_smtp'));if(s)smtpCfg={...smtpCfg,...s};}catch{}
-}
-function smtpSave(){
-  localStorage.setItem('sns_smtp',JSON.stringify(smtpCfg));
-}
-
-function shopSelChange(){
-  const cbs=document.querySelectorAll('.line-cb');
-  const checked=document.querySelectorAll('.line-cb:checked');
-  const all=$id('shop-cb-all');
-  if(all){all.indeterminate=checked.length>0&&checked.length<cbs.length;all.checked=checked.length>0&&checked.length===cbs.length;}
-  const bar=$id('shop-sel-bar');
-  if(bar){
-    if(checked.length>0){bar.style.display='flex';const sc=$id('shop-sel-count');if(sc)sc.textContent=checked.length+' item'+(checked.length!==1?'s':'')+' selected';}
-    else{bar.style.display='none';}
-  }
-}
-
-function shopToggleAll(v){
-  document.querySelectorAll('.line-cb').forEach(cb=>{cb.checked=v;});
-  shopSelChange();
-}
-
-function openSupplierMgr(){
-  suppLoad();
-  renderSupplierList();
-  _editSupIdx=-1;
-  $id('sup-name').value='';
-  $id('sup-email').value='';
-  $id('sup-form-title').textContent='Add Supplier';
-  $id('sup-cancel-edit').style.display='none';
-  openModal('modal-suppliers');
-}
-
-function renderSupplierList(){
-  const wrap=$id('sup-list-wrap');
-  if(!wrap)return;
-  if(!suppliersDB.length){
-    wrap.innerHTML='<p style="color:var(--g);font-size:12px;padding:6px 0">No suppliers saved yet. Add one below.</p>';
-    return;
-  }
-  wrap.innerHTML=suppliersDB.map((s,i)=>
-    '<div class="sup-row">'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="font-weight:600;font-size:13px">'+e(s.name)+'</div>'+
-        '<div style="font-size:11px;color:var(--g)">'+e(s.email)+'</div>'+
-      '</div>'+
-      '<button class="btn bo bxs" onclick="editSupplier('+i+')">Edit</button>'+
-      '<button class="btn bxs" style="background:var(--d);color:#fff" onclick="delSupplier('+i+')">&#x2715;</button>'+
-    '</div>'
-  ).join('');
-}
-
-function saveSupplier(){
-  const name=($id('sup-name').value||'').trim();
-  const email=($id('sup-email').value||'').trim();
-  if(!name||!email){alert('Name and email are required.');return;}
-  suppLoad();
-  if(_editSupIdx>=0){
-    suppliersDB[_editSupIdx]={...suppliersDB[_editSupIdx],name,email};
-  } else {
-    suppliersDB.push({id:'sup-'+Date.now(),name,email});
-  }
-  suppSave();
-  _editSupIdx=-1;
-  $id('sup-name').value='';
-  $id('sup-email').value='';
-  $id('sup-form-title').textContent='Add Supplier';
-  $id('sup-cancel-edit').style.display='none';
-  renderSupplierList();
-}
-
-function editSupplier(i){
-  suppLoad();
-  const s=suppliersDB[i];
-  if(!s)return;
-  _editSupIdx=i;
-  $id('sup-name').value=s.name;
-  $id('sup-email').value=s.email;
-  $id('sup-form-title').textContent='Edit Supplier';
-  $id('sup-cancel-edit').style.display='';
-  $id('sup-name').focus();
-}
-
-function cancelEditSupplier(){
-  _editSupIdx=-1;
-  $id('sup-name').value='';
-  $id('sup-email').value='';
-  $id('sup-form-title').textContent='Add Supplier';
-  $id('sup-cancel-edit').style.display='none';
-}
-
-function delSupplier(i){
-  suppLoad();
-  if(!confirm('Remove supplier: '+suppliersDB[i]?.name+'?'))return;
-  suppliersDB.splice(i,1);
-  suppSave();
-  renderSupplierList();
-}
-
-function openQuoteModal(){
-  suppLoad();
-  const checked=document.querySelectorAll('.line-cb:checked');
-  if(!checked.length){alert('Select at least one item first.');return;}
-  const sel=$id('quote-supplier');
-  sel.innerHTML='<option value="">— Select a supplier —</option>'+
-    suppliersDB.map((s,i)=>'<option value="'+i+'">'+e(s.name)+' &lt;'+e(s.email)+'&gt;</option>').join('');
-  const jobName=($id('job-name')?.value||'(Unsaved)').trim();
-  const today=new Date().toLocaleDateString('en-AU');
-  $id('quote-subject').value='Quote Request — '+jobName+' — '+today;
-  buildQuoteDraft();
-  openModal('modal-quote');
-}
-
-function buildQuoteDraft(){
-  const checked=[...document.querySelectorAll('.line-cb:checked')];
-  const rows=checked.map(cb=>{
-    const lid=cb.dataset.id;
-    const line=cur.lines.find(l=>String(l.id)===String(lid));
-    const dbPart=db.parts.find(p=>p.sns_pn===line?.sns_pn);
-    const sc=dbPart?.supplier_code||'—';
-    const qty=line?.qty||0;
-    const desc=line?.description||'';
-    return{sns:line?.sns_pn||'',sc,qty,desc};
-  });
-  const selIdx=$id('quote-supplier').value;
-  const sup=selIdx!==''?suppliersDB[parseInt(selIdx)]:null;
-  const greeting=sup?'Dear '+sup.name+',':'Hello,';
-  const pad=(s,l)=>(s+'').padEnd(l,' ');
-  const lines=rows.map(r=>pad(r.sns,14)+' '+pad(r.sc,18)+String(r.qty).padStart(4,' ')+'  '+r.desc);
-  const body=greeting+'\n\nWe would like to request a quote for the following parts:\n\n'+
-    pad('SNS Part #',14)+' '+pad('Supplier Code',18)+'  QTY  Description\n'+
-    '─'.repeat(72)+'\n'+
-    lines.join('\n')+'\n\n'+
-    'Please provide pricing and lead times at your earliest convenience.\n\n'+
-    'Kind regards,\nSafe Nest Solutions\n'+(smtpCfg.from||'admin@safenestsolutions.com.au');
-  $id('quote-body').value=body;
-}
-
-function quoteSupplierChange(){buildQuoteDraft();}
-
-function sendViaMailto(){
-  const selIdx=$id('quote-supplier').value;
-  if(selIdx===''){alert('Please select a supplier first.');return;}
-  const sup=suppliersDB[parseInt(selIdx)];
-  if(!sup){alert('Supplier not found.');return;}
-  const subj=encodeURIComponent($id('quote-subject').value||'Quote Request');
-  const body=encodeURIComponent($id('quote-body').value||'');
-  window.open('mailto:'+encodeURIComponent(sup.email)+'?subject='+subj+'&body='+body,'_self');
-}
-
-function copyQuoteBody(){
-  const body=$id('quote-body').value||'';
-  const btn=document.querySelector('#modal-quote .btn.bo');
-  navigator.clipboard.writeText(body).then(()=>{
-    if(btn){const o=btn.textContent;btn.textContent='✓ Copied!';setTimeout(()=>btn.textContent=o,2000);}
-  }).catch(()=>{$id('quote-body').select();document.execCommand('copy');});
-}
-
-function openSmtpModal(){
-  smtpLoad();
-  $id('smtp-host').value=smtpCfg.host||'';
-  $id('smtp-port').value=smtpCfg.port||587;
-  $id('smtp-user').value=smtpCfg.user||'';
-  $id('smtp-pass').value=smtpCfg.pass||'';
-  $id('smtp-from').value=smtpCfg.from||'';
-  $id('smtp-tls').checked=smtpCfg.tls!==false;
-  openModal('modal-smtp');
-}
-
-function saveSmtpSettings(){
-  smtpCfg={
-    host:($id('smtp-host').value||'').trim(),
-    port:parseInt($id('smtp-port').value)||587,
-    user:($id('smtp-user').value||'').trim(),
-    pass:$id('smtp-pass').value,
-    from:($id('smtp-from').value||'').trim(),
-    tls:$id('smtp-tls').checked
-  };
-  smtpSave();
-  closeModal('modal-smtp');
-  const el=$id('hdr-sync');if(el){const t=el.textContent;el.textContent='✓ SMTP saved';setTimeout(()=>el.textContent=t,2000);}
-}
-
-function sendViaSmtp(){
-  smtpLoad();
-  const st=$id('smtp-send-status');
-  const btn=$id('btn-send-smtp');
-  if(!smtpCfg.host||!smtpCfg.user||!smtpCfg.pass){if(st)st.textContent='⚠ Configure SMTP settings first.';return;}
-  const selIdx=$id('quote-supplier').value;
-  if(selIdx===''){if(st)st.textContent='⚠ Select a supplier first.';return;}
-  const sup=suppliersDB[parseInt(selIdx)];
-  if(st)st.textContent='Sending…';
-  if(btn)btn.disabled=true;
-  if(typeof Email==='undefined'){
-    const s=document.createElement('script');
-    s.src='https://smtpjs.com/v3/smtp.js';
-    s.onload=()=>_doSmtpSend(sup);
-    s.onerror=()=>{if(st)st.textContent='⚠ Could not load SMTP library.';if(btn)btn.disabled=false;};
-    document.head.appendChild(s);
-  } else {
-    _doSmtpSend(sup);
-  }
-}
-
-function _doSmtpSend(sup){
-  const st=$id('smtp-send-status');
-  const btn=$id('btn-send-smtp');
-  Email.send({
-    Host:smtpCfg.host,Username:smtpCfg.user,Password:smtpCfg.pass,
-    To:sup.email,From:smtpCfg.from||smtpCfg.user,
-    Subject:$id('quote-subject').value,
-    Body:($id('quote-body').value||'').replace(/\n/g,'<br>')
-  }).then(msg=>{
-    if(st)st.textContent=msg==='OK'?'✓ Sent successfully!':'⚠ '+msg;
-    if(btn)btn.disabled=false;
-  }).catch(err=>{
-    if(st)st.textContent='⚠ Error: '+err;
-    if(btn)btn.disabled=false;
-  });
-}
-
 function renderShop(){
   const c=$id('shop-body');
   const partLines=cur.lines.filter(l=>!l.type||l.type==='part');
   if(!partLines.length){c.innerHTML='<div class="empty">Add items to a job first.</div>';return;}
   const hasSections=cur.lines.some(l=>l.type==='section');
   const hdr='<p style="font-size:12px;color:var(--g);margin-bottom:9px">Job: <strong>'+e(str('job-name')||'(Unsaved)')+'</strong> &nbsp;|&nbsp; Client: <strong>'+e(str('job-client')||'—')+'</strong> &nbsp;|&nbsp; Date: <strong>'+($id('job-date').value||'—')+'</strong></p>';
-  const colHdr='<thead><tr><th style="width:28px;padding:4px 6px"><input type="checkbox" id="shop-cb-all" class="shop-cb" title="Select all" onclick="shopToggleAll(this.checked)"></th><th>SNS Part #</th><th>Description</th><th class="nr">QTY Req</th><th class="nr">In Stock</th><th class="nr">To Buy</th><th>Supplier</th><th>Supplier Code</th><th>Notes</th></tr></thead>';
+  const colHdr='<thead><tr><th>SNS Part #</th><th>Description</th><th class="nr">QTY Req</th><th class="nr">In Stock</th><th class="nr">To Buy</th><th>Supplier</th><th>Notes</th></tr></thead>';
   function partRow(l){
     const dbPart=db.parts.find(p=>p.sns_pn===l.sns_pn);
     const sup=dbPart?.trade_supplier||'';
     const inv=dbPart?.inventory||0;
     const toBuy=Math.max(0,l.qty-inv);
-    return'<tr><td style="padding:4px 6px;text-align:center"><input type="checkbox" class="shop-cb line-cb" data-id="'+l.id+'" data-sns="'+e(l.sns_pn||'')+'" onchange="shopSelChange()"></td><td><span class="badge bb">'+e(l.sns_pn)+'</span></td><td>'+e(l.description)+'</td>'+
+    return'<tr><td><span class="badge bb">'+e(l.sns_pn)+'</span></td><td>'+e(l.description)+'</td>'+
       '<td class="nr">'+l.qty+'</td>'+
       '<td class="nr"><input type="number" value="'+inv+'" min="0" style="width:52px;text-align:right" class="stk-inp" data-qty="'+l.qty+'"></td>'+
       '<td class="nr fw stk-buy">'+toBuy+'</td>'+
       '<td>'+e(sup)+'</td>'+
-      '<td>'+e(dbPart?.supplier_code||'')+'</td>'+
       '<td><input type="text" placeholder="Notes…" style="width:110px;font-size:11px"></td></tr>';
   }
   let body='';
@@ -1666,7 +1343,7 @@ function renderShop(){
     if(current.parts.length||current.name)groups.push(current);
     body=groups.map(g=>{
       if(!g.parts.length)return'';
-      const secHdr=g.name?'<tr><td colspan="9" style="background:var(--pd);color:#fff;font-weight:700;font-size:12px;padding:6px 10px;letter-spacing:.3px">'+e(g.name)+'</td></tr>':'';
+      const secHdr=g.name?'<tr><td colspan="7" style="background:var(--pd);color:#fff;font-weight:700;font-size:12px;padding:6px 10px;letter-spacing:.3px">'+e(g.name)+'</td></tr>':'';
       return secHdr+g.parts.map(partRow).join('');
     }).join('');
     body='<div class="tw"><table>'+colHdr+'<tbody>'+body+'</tbody></table></div>';
@@ -1684,27 +1361,25 @@ function downloadShopCSV(){
   if(!partLines.length){alert('No items in the shopping list.');return;}
   const hasSections=cur.lines.some(l=>l.type==='section');
   // Build rows from live DOM so Notes values are captured
-  const rows=[['SNS Part #','Description','To Buy','Supplier Code','Notes']];
+  const rows=[['SNS Part #','Description','To Buy','Notes']];
   if(hasSections){
     let secName='';
     cur.lines.forEach(l=>{
       if(l.type==='section'){secName=l.name;return;}
-      const _p4=db.parts.find(p=>p.sns_pn===l.sns_pn);
-      const toBuy=Math.max(0,l.qty-(_p4?.inventory||0));
-      rows.push([l.sns_pn,l.description,toBuy,_p4?.supplier_code||'','']);
+      const toBuy=Math.max(0,l.qty-(db.parts.find(p=>p.sns_pn===l.sns_pn)?.inventory||0));
+      rows.push([l.sns_pn,l.description,toBuy,'']);
     });
   } else {
     partLines.forEach(l=>{
-      const _p4=db.parts.find(p=>p.sns_pn===l.sns_pn);
-      const toBuy=Math.max(0,l.qty-(_p4?.inventory||0));
-      rows.push([l.sns_pn,l.description,toBuy,_p4?.supplier_code||'','']);
+      const toBuy=Math.max(0,l.qty-(db.parts.find(p=>p.sns_pn===l.sns_pn)?.inventory||0));
+      rows.push([l.sns_pn,l.description,toBuy,'']);
     });
   }
   // Capture Notes from DOM inputs (col 7 → index 6 in tr cells)
   const trs=document.querySelectorAll('#shop-body table tbody tr:not(.sec-row)');
   trs.forEach((tr,i)=>{
     const noteInp=tr.querySelector('td:last-child input');
-    if(noteInp&&rows[i+1])rows[i+1][4]=noteInp.value||'';
+    if(noteInp&&rows[i+1])rows[i+1][3]=noteInp.value||'';
   });
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
   const blob=new Blob(['﻿',csv],{type:'text/csv;charset=utf-8'});
@@ -1980,10 +1655,10 @@ $id('btn-print').addEventListener('click',()=>window.print&&window.print());
 $id('btn-shop-csv').addEventListener('click',downloadShopCSV);
 
 window.addEventListener('beforeprint',function(){
-  document.querySelectorAll('#panel-shopping td[colspan]').forEach(td=>td.setAttribute('colspan','5'));
+  document.querySelectorAll('#panel-shopping td[colspan]').forEach(td=>td.setAttribute('colspan','4'));
 });
 window.addEventListener('afterprint',function(){
-  document.querySelectorAll('#panel-shopping td[colspan]').forEach(td=>td.setAttribute('colspan','9'));
+  document.querySelectorAll('#panel-shopping td[colspan]').forEach(td=>td.setAttribute('colspan','7'));
 });
 
 init();
