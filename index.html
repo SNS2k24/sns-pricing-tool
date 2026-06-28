@@ -1385,7 +1385,12 @@ function persistJob(){
   const nm=str('job-name');if(!nm){alert('Enter a Job Name first.');$id('job-name').focus();return;}
   if(!cur.lines.length){alert('Add at least one item first.');return;}
   const s=gs();let tot={hw:0,q:0,d:0,lab:0};
-  cur.lines.forEach(l=>{const c=calcLine(l,s);tot.hw+=c.tb;tot.q+=c.twr;tot.d+=c.ida;tot.lab+=c.tit;});
+  let _secActive=true;
+  cur.lines.forEach(l=>{
+    if(l.type==='section'){_secActive=l.active!==false;return;}
+    if(!_secActive)return;
+    const c=calcLine(l,s);tot.hw+=c.tb;tot.q+=c.twr;tot.d+=c.ida;tot.lab+=c.tit;
+  });
   const sub=tot.q+s.th*75+(s.mc||0)+s.cc,tq=sub-tot.d;
   const payload={name:nm,client:str('job-client'),date:$id('job-date').value,settings:s,lines:JSON.parse(JSON.stringify(cur.lines)),totals:{...tot,tq,gst:tq*.1,grand:tq*1.1},savedAt:new Date().toISOString()};
   const existing=db.jobs.findIndex(x=>x.name===nm);
