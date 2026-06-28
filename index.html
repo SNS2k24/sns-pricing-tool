@@ -173,8 +173,7 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
     <span class="hbadge" id="hdr-parts">— Parts</span>
     <span class="hbadge" id="hdr-jobs">— Jobs</span>
     <span class="hbadge" id="hdr-sync">⏱ Never synced</span>
-    <button class="btn bw bsm" id="btn-export">📤 Export</button>
-    <label class="btn bs bsm" style="cursor:pointer">📥 Import<input type="file" id="import-file" accept=".json" style="display:none"></label>
+
   </div>
 </header>
 <nav id="main-nav">
@@ -199,6 +198,11 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
     <label class="btn bo" style="cursor:pointer" title="Import parts from a CSV file">📂 CSV Import<input type="file" id="csv-file" accept=".csv,.txt" style="display:none"></label>
     <button class="btn bo" id="btn-export-csv" title="Download all parts as CSV">⬇️ Download CSV</button>
     <span id="parts-count" class="cm" style="font-size:11px"></span>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;padding-top:6px;border-top:1px solid var(--b);margin-top:4px">
+    <span style="font-size:11px;color:var(--g);margin-right:2px">💾 Backup:</span>
+    <button class="btn bw bsm" id="btn-export" style="font-size:11px">📤 Export JSON</button>
+    <label class="btn bs bsm" style="cursor:pointer;font-size:11px">📥 Import JSON<input type="file" id="import-file" accept=".json" style="display:none"></label>
   </div>
   <div class="tw" style="max-height:58vh;overflow-y:auto">
     <table>
@@ -605,10 +609,12 @@ async function pushCloud(){
     const pRows=db.parts.map(p=>{return{id:p.id,data:p}});
     const jRows=db.jobs.map(j=>{return{id:j.id,name:j.name,data:j}});
     const tRows=db.templates.map(t=>{return{id:t.id,name:t.name,data:t}});
+    const sRows=suppliersDB.map(s=>({id:s.id,name:s.name,data:s}));
     const ops=[];
     if(pRows.length)ops.push(supa.from('parts').upsert(pRows,{onConflict:'id'}));
     if(jRows.length)ops.push(supa.from('jobs').upsert(jRows,{onConflict:'id'}));
     if(tRows.length)ops.push(supa.from('templates').upsert(tRows,{onConflict:'id'}));
+    if(sRows.length)ops.push(supa.from('suppliers').upsert(sRows,{onConflict:'id'}));
     await Promise.all(ops);
     syncStampSave(new Date().toISOString());updateSyncBadge();
     cloudFailCount=0;
@@ -631,12 +637,13 @@ async function dbLoad(){
   try{const s=localStorage.getItem('sns_cur4');if(s)cur=JSON.parse(s);}catch(x){}
   // Try Supabase first
   try{
-    const[pr,jr,tr]=await Promise.all([
+    const[pr,jr,tr,sr]=await Promise.all([
       supa.from('parts').select('id,data'),
       supa.from('jobs').select('id,data'),
-      supa.from('templates').select('id,data')
+      supa.from('templates').select('id,data'),
+      supa.from('suppliers').select('id,data')
     ]);
-    if(pr.error||jr.error||tr.error)throw new Error('Supabase query error');
+    if(pr.error||jr.error||tr.error||sr.error)throw new Error('Supabase query error');
     // Parts: use cloud if populated, else seed
     if(pr.data&&pr.data.length){
       db.parts=pr.data.map(r=>r.data);
@@ -648,6 +655,12 @@ async function dbLoad(){
     db.jobs=jr.data?jr.data.map(r=>r.data).sort((a,b)=>new Date(b.savedAt||0)-new Date(a.savedAt||0)):[];
     db.templates=tr.data?tr.data.map(r=>r.data):[];
     if(!db.templates)db.templates=[];
+    suppliersDB=sr.data?sr.data.map(r=>r.data):[];
+    // Merge any local-only suppliers (pre-sync migration)
+    const cloudIds=new Set(suppliersDB.map(s=>s.id));
+    const localOnly=(JSON.parse(localStorage.getItem('sns_suppliers')||'[]')).filter(s=>s.id&&!cloudIds.has(s.id));
+    if(localOnly.length){suppliersDB.push(...localOnly);}
+    localStorage.setItem('sns_suppliers',JSON.stringify(suppliersDB));
     cloudReady=true;
     localStorage.setItem('sns_db4',JSON.stringify(db));
   }catch(err){
@@ -670,16 +683,19 @@ async function dbLoad(){
 async function retryCloudLoad(){
   if(cloudReady)return; // already connected
   try{
-    const[pr,jr,tr]=await Promise.all([
+    const[pr,jr,tr,sr]=await Promise.all([
       supa.from('parts').select('id,data'),
       supa.from('jobs').select('id,data'),
-      supa.from('templates').select('id,data')
+      supa.from('templates').select('id,data'),
+      supa.from('suppliers').select('id,data')
     ]);
-    if(pr.error||jr.error||tr.error)throw new Error('retry failed');
+    if(pr.error||jr.error||tr.error||sr.error)throw new Error('retry failed');
     if(pr.data&&pr.data.length)db.parts=pr.data.map(r=>r.data);
     db.jobs=jr.data?jr.data.map(r=>r.data).sort((a,b)=>new Date(b.savedAt||0)-new Date(a.savedAt||0)):[];
     db.templates=tr.data?tr.data.map(r=>r.data):[];
     if(!db.templates)db.templates=[];
+    suppliersDB=sr.data?sr.data.map(r=>r.data):[];
+    localStorage.setItem('sns_suppliers',JSON.stringify(suppliersDB));
     cloudReady=true;
     cloudFailCount=0;
     localStorage.setItem('sns_db4',JSON.stringify(db));
@@ -1393,9 +1409,11 @@ let _editSupIdx=-1;
 
 function suppLoad(){
   try{suppliersDB=JSON.parse(localStorage.getItem('sns_suppliers')||'[]');}catch{suppliersDB=[];}
+  suppliersDB.forEach(s=>{if(!s.id)s.id='sup-'+Date.now()+'-'+Math.random().toString(36).slice(2);});
 }
 function suppSave(){
   localStorage.setItem('sns_suppliers',JSON.stringify(suppliersDB));
+  if(cloudReady){clearTimeout(syncTimer);syncTimer=setTimeout(pushCloud,900);}
 }
 function smtpLoad(){
   try{const s=JSON.parse(localStorage.getItem('sns_email'));if(s)emailCfg={...emailCfg,...s};}catch{}
@@ -1492,9 +1510,11 @@ function cancelEditSupplier(){
 
 function delSupplier(i){
   suppLoad();
-  if(!confirm('Remove supplier: '+suppliersDB[i]?.name+'?'))return;
+  const sup=suppliersDB[i];
+  if(!confirm('Remove supplier: '+sup?.name+'?'))return;
   suppliersDB.splice(i,1);
   suppSave();
+  if(sup?.id)cloudDel('suppliers',sup.id);
   renderSupplierList();
 }
 
@@ -1634,7 +1654,7 @@ function renderShop(){
     cur.lines.forEach(l=>{
       if(l.type==='section'){
         if(current.parts.length||current.name)groups.push(current);
-        current={name:l.name,parts:[]};
+        current={name:l.name,active:l.active!==false,parts:[]};
       } else {
         current.parts.push(l);
       }
@@ -1642,6 +1662,7 @@ function renderShop(){
     if(current.parts.length||current.name)groups.push(current);
     body=groups.map(g=>{
       if(!g.parts.length)return'';
+      if(g.active===false)return'';
       const secHdr=g.name?'<tr><td colspan="8" style="background:var(--pd);color:#fff;font-weight:700;font-size:12px;padding:6px 10px;letter-spacing:.3px">'+e(g.name)+'</td></tr>':'';
       return secHdr+g.parts.map(partRow).join('');
     }).join('');
@@ -1662,9 +1683,10 @@ function downloadShopCSV(){
   // Build rows from live DOM so Notes values are captured
   const rows=[['SNS Part #','To Buy','Supplier Code','Notes']];
   if(hasSections){
-    let secName='';
+    let secName='';let secActive=true;
     cur.lines.forEach(l=>{
-      if(l.type==='section'){secName=l.name;return;}
+      if(l.type==='section'){secName=l.name;secActive=l.active!==false;return;}
+      if(!secActive)return;
       const _p4=db.parts.find(p=>p.sns_pn===l.sns_pn);
       const toBuy=Math.max(0,l.qty-(_p4?.inventory||0));
       rows.push([l.sns_pn,toBuy,_p4?.supplier_code||'','']);
