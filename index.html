@@ -1223,16 +1223,19 @@ function addLine(){
     // Find insert index: end of this section (before next section header or end of array)
     const si=cur.lines.findIndex(l=>l.type==='section'&&l.id===secId);
     if(si>=0){
-      const ex=cur.lines.find((l,i)=>i>si&&l.type!=='section'&&l.sns_pn===p.sns_pn);
+      // Find the end of this section (next section header or end of array)
+      let secEnd=si+1;
+      while(secEnd<cur.lines.length&&cur.lines[secEnd].type!=='section')secEnd++;
+      // Only look for duplicates within this section
+      const ex=cur.lines.find((l,i)=>i>si&&i<secEnd&&l.type!=='section'&&l.sns_pn===p.sns_pn);
       if(ex){ex.qty+=qty;if(bpo!=null)ex.bpo=bpo;}
-      else{
-        let ins=si+1;
-        while(ins<cur.lines.length&&cur.lines[ins].type!=='section')ins++;
-        cur.lines.splice(ins,0,newLine);
-      }
+      else{cur.lines.splice(secEnd,0,newLine);}
     } else cur.lines.push(newLine);
   } else {
-    const ex=cur.lines.find(l=>l.type!=='section'&&l.sns_pn===p.sns_pn);
+    // No section selected — only match unsectioned parts (before first section header)
+    const firstSec=cur.lines.findIndex(l=>l.type==='section');
+    const limit=firstSec>=0?firstSec:cur.lines.length;
+    const ex=cur.lines.find((l,i)=>i<limit&&l.type!=='section'&&l.sns_pn===p.sns_pn);
     if(ex){ex.qty+=qty;if(bpo!=null)ex.bpo=bpo;}
     else cur.lines.push(newLine);
   }
