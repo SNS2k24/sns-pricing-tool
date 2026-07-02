@@ -1375,7 +1375,7 @@ function renderSum(t,s){
   $id('s-actual-wrap').style.display=hasAct?'':'none';
   $id('s-amargin-wrap').style.display=hasAct?'':'none';
   if(hasAct){
-    const am=actv-t.hw-(s.mc||0)-s.cc;
+    const am=actv-t.hw-s.cc;
     $id('s-actual').textContent='$'+actv.toFixed(2);
     $id('s-amargin').textContent='$'+am.toFixed(2);
     $id('s-amargin').className='sv '+(am>=0?'cs':'cd');
@@ -1777,8 +1777,7 @@ function renderReport(){
     const tq=j.totals?.tq||0;
     const hasActual=act>0;
     const inv=hasActual?act:tq;
-    const mc_cost=j.settings?.mc||0;
-    const margin=inv-hw-cc-mc_cost;
+    const margin=inv-hw-cc;
     const marginPct=inv>0?Math.round(margin/inv*1000)/10:0;
     totInv+=inv;totHw+=hw;totCon+=cc;totMar+=margin;n++;
     const mc=margin>=0?'cs':'cd';
