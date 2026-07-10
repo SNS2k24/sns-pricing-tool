@@ -1412,7 +1412,7 @@ function renderSum(t,s){
   }
 }
 
-function clearJob(){if(!cur.lines.length)return;if(!confirm('Clear all line items?'))return;cur.lines=[];cur.stockAllocated={};curSave();renderJobTable();}
+function clearJob(){if(!cur.lines.length)return;if(!confirm('Clear all line items?'))return;cur.lines=[];cur.stockAllocated={};cur.supplierOverrides={};curSave();renderJobTable();}
 
 function persistJob(){
   const nm=str('job-name');if(!nm){alert('Enter a Job Name first.');$id('job-name').focus();return;}
@@ -1431,7 +1431,7 @@ function persistJob(){
   const alreadyDeducted=existing>=0&&db.jobs[existing].stockDeducted===true;
   const shouldDeduct=status==='Accepted'&&!alreadyDeducted;
   const stockAllocatedFinal=shouldDeduct?stockAllocated:(existing>=0?db.jobs[existing].stockAllocated||{}:{});
-  const payload={name:nm,client:str('job-client'),date:$id('job-date').value,status,notes:$id('job-notes').value.trim(),settings:s,lines:JSON.parse(JSON.stringify(cur.lines)),totals:{...tot,hw:hwFinal,tq,gst:tq*.1,grand:tq*1.1},savedAt:new Date().toISOString(),stockDeducted:alreadyDeducted||shouldDeduct,stockAllocated:stockAllocatedFinal};
+  const payload={name:nm,client:str('job-client'),date:$id('job-date').value,status,notes:$id('job-notes').value.trim(),settings:s,lines:JSON.parse(JSON.stringify(cur.lines)),totals:{...tot,hw:hwFinal,tq,gst:tq*.1,grand:tq*1.1},savedAt:new Date().toISOString(),stockDeducted:alreadyDeducted||shouldDeduct,stockAllocated:stockAllocatedFinal,supplierOverrides:cur.supplierOverrides||{}};
   // Deduct stock for newly-accepted jobs (once only)
   const deductedParts=[];
   const stockAllocated={};
@@ -1509,6 +1509,14 @@ function shopSelChange(){
 function shopToggleAll(v){
   document.querySelectorAll('.line-cb').forEach(cb=>{cb.checked=v;});
   shopSelChange();
+}
+
+function shopChangeSupplier(sns,val){
+  if(!cur.supplierOverrides)cur.supplierOverrides={};
+  if(val){cur.supplierOverrides[sns]=val;}
+  else{delete cur.supplierOverrides[sns];}
+  curSave();
+  renderShop();
 }
 
 function shopGroupQuote(supName){
@@ -1781,7 +1789,7 @@ function renderShop(){
   const stockHdr=hasAlloc
     ?'<th class="nr" style="color:#065f46">From Stock</th><th class="nr">To Order</th>'
     :'<th class="nr">In Stock</th><th class="nr">To Buy</th>';
-  const colHdr='<thead><tr><th style="width:28px;padding:4px 6px"><input type="checkbox" id="shop-cb-all" class="shop-cb" title="Select all" onclick="shopToggleAll(this.checked)"></th><th>SNS Part #</th><th class="nr">QTY Req</th>'+stockHdr+'<th>Supplier Code</th><th>Notes</th></tr></thead>';
+  const colHdr='<thead><tr><th style="width:28px;padding:4px 6px"><input type="checkbox" id="shop-cb-all" class="shop-cb" title="Select all" onclick="shopToggleAll(this.checked)"></th><th>SNS Part #</th><th class="nr">QTY Req</th>'+stockHdr+'<th>Supplier</th><th>Supplier Code</th><th>Notes</th></tr></thead>';
   // Consolidate quantities across active sections
   const conMap=new Map();
   let secActive=true;
@@ -1793,17 +1801,21 @@ function renderShop(){
   });
   if(!conMap.size){c.innerHTML='<div class="empty">No active sections with parts.</div>';return;}
   const hasSections=cur.lines.some(l=>l.type==='section');
-  // Group parts by supplier
+  // Group parts by effective supplier (override takes priority over part default)
   suppLoad();
+  const overrides=cur.supplierOverrides||{};
   const supGroups=new Map();
   conMap.forEach(l=>{
     const dbPart=db.parts.find(p=>p.sns_pn===l.sns_pn);
-    const key=dbPart?.trade_supplier||'— No Supplier —';
-    if(!supGroups.has(key))supGroups.set(key,[]);
-    supGroups.get(key).push(l);
+    const effectiveSup=overrides[l.sns_pn]||(dbPart?.trade_supplier)||'— No Supplier —';
+    if(!supGroups.has(effectiveSup))supGroups.set(effectiveSup,[]);
+    supGroups.get(effectiveSup).push(l);
   });
+  const supOpts='<option value="">— Part Default —</option>'+suppliersDB.map(s=>'<option value="'+e(s.name)+'">'+e(s.name)+'</option>').join('');
   function partRow(l){
     const dbPart=db.parts.find(p=>p.sns_pn===l.sns_pn);
+    const defaultSup=dbPart?.trade_supplier||'';
+    const effectiveSup=overrides[l.sns_pn]||defaultSup;
     let stockCell,buyCell;
     if(hasAlloc){
       const fromStock=cur.stockAllocated[l.sns_pn]||0;
@@ -1816,9 +1828,14 @@ function renderShop(){
       stockCell='<td class="nr"><input type="number" value="'+inv+'" min="0" style="width:52px;text-align:right" class="stk-inp" data-qty="'+l.qty+'"></td>';
       buyCell='<td class="nr fw stk-buy">'+toBuy+'</td>';
     }
+    const supSelect='<select class="shop-sup-sel" data-sns="'+e(l.sns_pn)+'" onchange="shopChangeSupplier(this.dataset.sns,this.value)" style="font-size:11px;padding:2px 4px;border:1px solid var(--b);border-radius:4px;max-width:130px">'+
+      '<option value="">'+e(defaultSup?'Default: '+defaultSup:'— None —')+'</option>'+
+      suppliersDB.map(s=>'<option value="'+e(s.name)+'"'+(effectiveSup===s.name&&overrides[l.sns_pn]?' selected':'')+'>'+e(s.name)+'</option>').join('')+
+      '</select>';
     return'<tr><td style="padding:4px 6px;text-align:center"><input type="checkbox" class="shop-cb line-cb" data-sns="'+e(l.sns_pn||'')+'" data-qty="'+l.qty+'" onchange="shopSelChange()"></td><td><span class="badge bb">'+e(l.sns_pn)+'</span></td>'+
       '<td class="nr">'+l.qty+'</td>'+
       stockCell+buyCell+
+      '<td>'+supSelect+'</td>'+
       '<td>'+e(dbPart?.supplier_code||'')+'</td>'+
       '<td><input type="text" placeholder="Notes…" style="width:110px;font-size:11px"></td></tr>';
   }
@@ -1830,7 +1847,7 @@ function renderShop(){
       ?'<button class="btn bsm" style="background:rgba(255,255,255,.18);color:#fff;padding:2px 9px;font-size:11px;border:1px solid rgba(255,255,255,.35);margin-left:8px;float:right" data-sup="'+e(supName)+'" onclick="shopGroupQuote(this.dataset.sup)">✉️ Quote</button>'
       :'';
     const emailLabel=hasEmail?'<span style="font-weight:400;font-size:11px;opacity:.75"> &lt;'+e(supObj.email)+'&gt;</span>':'';
-    rows+='<tr><td colspan="6" style="background:var(--p);color:#fff;font-weight:700;font-size:12px;padding:7px 10px">'+e(supName)+emailLabel+quoteBtn+'</td></tr>';
+    rows+='<tr><td colspan="7" style="background:var(--p);color:#fff;font-weight:700;font-size:12px;padding:7px 10px">'+e(supName)+emailLabel+quoteBtn+'</td></tr>';
     rows+=parts.map(partRow).join('');
   });
   const allocNote=hasAlloc?'<p style="font-size:11px;color:#065f46;margin-bottom:6px;font-weight:600">✅ Stock allocated — green column shows units pulled from inventory; To Order is the remaining purchase qty.</p>':'';
@@ -1913,7 +1930,7 @@ function renderSaved(){
 function loadJob(id){
   const j=db.jobs.find(x=>x.id===id);if(!j)return;
   if(cur.lines.length&&!confirm('Replace current job with "'+j.name+'"?'))return;
-  cur.lines=JSON.parse(JSON.stringify(j.lines));cur.stockAllocated=j.stockAllocated||{};
+  cur.lines=JSON.parse(JSON.stringify(j.lines));cur.stockAllocated=j.stockAllocated||{};cur.supplierOverrides=j.supplierOverrides||{};
   $id('job-name').value=j.name;$id('job-client').value=j.client||'';$id('job-date').value=j.date||'';$id('job-status').value=j.status||'Quote';$id('job-hwa').value=j.settings?.hwa||'';$id('job-notes').value=j.notes||'';
   $id('job-markup').value=Math.round((j.settings.mp||.15)*100);
   $id('job-risk').value=Math.round((j.settings.rp||.04)*100);
