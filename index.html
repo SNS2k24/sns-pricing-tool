@@ -1395,7 +1395,7 @@ function renderSum(t,s){
   }
 }
 
-function clearJob(){if(!cur.lines.length)return;if(!confirm('Clear all line items?'))return;cur.lines=[];curSave();renderJobTable();}
+function clearJob(){if(!cur.lines.length)return;if(!confirm('Clear all line items?'))return;cur.lines=[];cur.stockAllocated={};curSave();renderJobTable();}
 
 function persistJob(){
   const nm=str('job-name');if(!nm){alert('Enter a Job Name first.');$id('job-name').focus();return;}
@@ -1413,9 +1413,11 @@ function persistJob(){
   const existing=db.jobs.findIndex(x=>x.name===nm);
   const alreadyDeducted=existing>=0&&db.jobs[existing].stockDeducted===true;
   const shouldDeduct=status==='Accepted'&&!alreadyDeducted;
-  const payload={name:nm,client:str('job-client'),date:$id('job-date').value,status,notes:$id('job-notes').value.trim(),settings:s,lines:JSON.parse(JSON.stringify(cur.lines)),totals:{...tot,hw:hwFinal,tq,gst:tq*.1,grand:tq*1.1},savedAt:new Date().toISOString(),stockDeducted:alreadyDeducted||shouldDeduct};
+  const stockAllocatedFinal=shouldDeduct?stockAllocated:(existing>=0?db.jobs[existing].stockAllocated||{}:{});
+  const payload={name:nm,client:str('job-client'),date:$id('job-date').value,status,notes:$id('job-notes').value.trim(),settings:s,lines:JSON.parse(JSON.stringify(cur.lines)),totals:{...tot,hw:hwFinal,tq,gst:tq*.1,grand:tq*1.1},savedAt:new Date().toISOString(),stockDeducted:alreadyDeducted||shouldDeduct,stockAllocated:stockAllocatedFinal};
   // Deduct stock for newly-accepted jobs (once only)
   const deductedParts=[];
+  const stockAllocated={};
   if(shouldDeduct){
     const deductMap=new Map();
     let secActive=true;
@@ -1428,8 +1430,10 @@ function persistJob(){
       const p=db.parts.find(x=>x.sns_pn===sns);
       if(p){
         const before=p.inventory||0;
+        const taken=Math.min(qty,before);
         p.inventory=Math.max(0,before-qty);
-        if(before>0)deductedParts.push({sns,deduct:Math.min(qty,before),remaining:p.inventory});
+        stockAllocated[sns]=taken;
+        if(before>0)deductedParts.push({sns,deduct:taken,remaining:p.inventory});
       }
     });
   }
@@ -1679,7 +1683,11 @@ function renderShop(){
   const hasParts=cur.lines.some(l=>!l.type||l.type==='part');
   if(!hasParts){c.innerHTML='<div class="empty">Add items to a job first.</div>';return;}
   const hdr='<p style="font-size:12px;color:var(--g);margin-bottom:9px">Job: <strong>'+e(str('job-name')||'(Unsaved)')+'</strong> &nbsp;|&nbsp; Client: <strong>'+e(str('job-client')||'—')+'</strong> &nbsp;|&nbsp; Date: <strong>'+($id('job-date').value||'—')+'</strong></p>';
-  const colHdr='<thead><tr><th style="width:28px;padding:4px 6px"><input type="checkbox" id="shop-cb-all" class="shop-cb" title="Select all" onclick="shopToggleAll(this.checked)"></th><th>SNS Part #</th><th class="nr">QTY Req</th><th class="nr">In Stock</th><th class="nr">To Buy</th><th>Supplier</th><th>Supplier Code</th><th>Notes</th></tr></thead>';
+  const hasAlloc=cur.stockAllocated&&Object.keys(cur.stockAllocated).length>0;
+  const stockHdr=hasAlloc
+    ?'<th class="nr" style="color:#065f46">From Stock</th><th class="nr">To Order</th>'
+    :'<th class="nr">In Stock</th><th class="nr">To Buy</th>';
+  const colHdr='<thead><tr><th style="width:28px;padding:4px 6px"><input type="checkbox" id="shop-cb-all" class="shop-cb" title="Select all" onclick="shopToggleAll(this.checked)"></th><th>SNS Part #</th><th class="nr">QTY Req</th>'+stockHdr+'<th>Supplier</th><th>Supplier Code</th><th>Notes</th></tr></thead>';
   // Consolidate quantities across active sections
   const conMap=new Map();
   let secActive=true;
@@ -1694,18 +1702,28 @@ function renderShop(){
   function partRow(l){
     const dbPart=db.parts.find(p=>p.sns_pn===l.sns_pn);
     const sup=dbPart?.trade_supplier||'';
-    const inv=dbPart?.inventory||0;
-    const toBuy=Math.max(0,l.qty-inv);
+    let stockCell,buyCell;
+    if(hasAlloc){
+      const fromStock=cur.stockAllocated[l.sns_pn]||0;
+      const toOrder=Math.max(0,l.qty-fromStock);
+      stockCell='<td class="nr fw" style="color:#065f46">'+fromStock+'</td>';
+      buyCell='<td class="nr fw '+(toOrder>0?'':'cs')+'">'+toOrder+'</td>';
+    } else {
+      const inv=dbPart?.inventory||0;
+      const toBuy=Math.max(0,l.qty-inv);
+      stockCell='<td class="nr"><input type="number" value="'+inv+'" min="0" style="width:52px;text-align:right" class="stk-inp" data-qty="'+l.qty+'"></td>';
+      buyCell='<td class="nr fw stk-buy">'+toBuy+'</td>';
+    }
     return'<tr><td style="padding:4px 6px;text-align:center"><input type="checkbox" class="shop-cb line-cb" data-sns="'+e(l.sns_pn||'')+'" data-qty="'+l.qty+'" onchange="shopSelChange()"></td><td><span class="badge bb">'+e(l.sns_pn)+'</span></td>'+
       '<td class="nr">'+l.qty+'</td>'+
-      '<td class="nr"><input type="number" value="'+inv+'" min="0" style="width:52px;text-align:right" class="stk-inp" data-qty="'+l.qty+'"></td>'+
-      '<td class="nr fw stk-buy">'+toBuy+'</td>'+
+      stockCell+buyCell+
       '<td>'+e(sup)+'</td>'+
       '<td>'+e(dbPart?.supplier_code||'')+'</td>'+
       '<td><input type="text" placeholder="Notes…" style="width:110px;font-size:11px"></td></tr>';
   }
+  const allocNote=hasAlloc?'<p style="font-size:11px;color:#065f46;margin-bottom:6px;font-weight:600">✅ Stock allocated — green column shows units pulled from inventory; To Order is the remaining purchase qty.</p>':'';
   const consolidatedNote=hasSections?'<p style="font-size:11px;color:var(--g);margin-bottom:6px;font-style:italic">Quantities consolidated across all active sections.</p>':'';
-  const body=consolidatedNote+'<div class="tw"><table>'+colHdr+'<tbody>'+[...conMap.values()].map(partRow).join('')+'</tbody></table></div>';
+  const body=allocNote+consolidatedNote+'<div class="tw"><table>'+colHdr+'<tbody>'+[...conMap.values()].map(partRow).join('')+'</tbody></table></div>';
   c.innerHTML=hdr+body;
   document.querySelectorAll('.stk-inp').forEach(inp=>{
     inp.addEventListener('input',function(){
@@ -1783,7 +1801,7 @@ function renderSaved(){
 function loadJob(id){
   const j=db.jobs.find(x=>x.id===id);if(!j)return;
   if(cur.lines.length&&!confirm('Replace current job with "'+j.name+'"?'))return;
-  cur.lines=JSON.parse(JSON.stringify(j.lines));
+  cur.lines=JSON.parse(JSON.stringify(j.lines));cur.stockAllocated=j.stockAllocated||{};
   $id('job-name').value=j.name;$id('job-client').value=j.client||'';$id('job-date').value=j.date||'';$id('job-status').value=j.status||'Quote';$id('job-hwa').value=j.settings?.hwa||'';$id('job-notes').value=j.notes||'';
   $id('job-markup').value=Math.round((j.settings.mp||.15)*100);
   $id('job-risk').value=Math.round((j.settings.rp||.04)*100);
