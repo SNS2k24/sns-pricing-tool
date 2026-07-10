@@ -1827,7 +1827,7 @@ function renderShop(){
     const supObj=suppliersDB.find(s=>s.name===supName);
     const hasEmail=!!supObj?.email;
     const quoteBtn=hasEmail
-      ?'<button class="btn bsm" style="background:rgba(255,255,255,.18);color:#fff;padding:2px 9px;font-size:11px;border:1px solid rgba(255,255,255,.35);margin-left:8px;float:right" onclick="shopGroupQuote(''+supName.replace(/\/g,'\\').replace(/'/g,"\'")+'')" >✉️ Quote</button>'
+      ?'<button class="btn bsm" style="background:rgba(255,255,255,.18);color:#fff;padding:2px 9px;font-size:11px;border:1px solid rgba(255,255,255,.35);margin-left:8px;float:right" data-sup="'+e(supName)+'" onclick="shopGroupQuote(this.dataset.sup)">✉️ Quote</button>'
       :'';
     const emailLabel=hasEmail?'<span style="font-weight:400;font-size:11px;opacity:.75"> &lt;'+e(supObj.email)+'&gt;</span>':'';
     rows+='<tr><td colspan="6" style="background:var(--p);color:#fff;font-weight:700;font-size:12px;padding:7px 10px">'+e(supName)+emailLabel+quoteBtn+'</td></tr>';
