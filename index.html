@@ -326,7 +326,6 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;flex-wrap:wrap;gap:6px">
     <div class="ctitle" style="margin:0">Shopping List</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn bo bsm" onclick="openSupplierMgr()">👥 Suppliers</button>
       <button class="btn bo bsm" onclick="openSmtpModal()">⚙️ SMTP</button>
       <button class="btn bo bsm" id="btn-print">🖨 Print</button>
       <button class="btn bo bsm" id="btn-shop-csv">⬇ CSV</button>
@@ -334,6 +333,24 @@ a.el{color:var(--p);text-decoration:none;font-size:14px}
   </div>
   <div id="shop-body"><div class="empty">Add items to a job to generate the shopping list.</div></div>
   <div id="shop-sel-bar"><span id="shop-sel-count">0 items selected</span><button class="btn bsm" style="background:rgba(255,255,255,.25);color:#fff;border:1px solid rgba(255,255,255,.4);padding:4px 10px" onclick="openQuoteModal()">✉️ Request Quote</button><button class="btn bsm" style="background:none;color:rgba(255,255,255,.65);padding:4px 8px" onclick="shopToggleAll(false)">✕ Clear</button></div>
+</div>
+<div class="card" style="margin-top:8px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+    <div class="ctitle" style="margin:0">Suppliers</div>
+    <button class="btn bs bsm" onclick="shopShowAddSupplier()">+ Add New</button>
+  </div>
+  <div id="shop-sup-list"></div>
+  <div id="shop-sup-form" style="display:none;padding-top:10px;border-top:1px solid var(--b);margin-top:8px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px" id="shop-sup-form-title">Add Supplier</div>
+    <div class="frow" style="gap:8px;margin-bottom:8px">
+      <div class="fg" style="flex:2"><label>Name *</label><input type="text" id="shop-sup-name" style="width:100%" placeholder="e.g. RS Components"></div>
+      <div class="fg" style="flex:3"><label>Email *</label><input type="email" id="shop-sup-email" style="width:100%" placeholder="sales@supplier.com.au"></div>
+    </div>
+    <div style="display:flex;gap:7px;justify-content:flex-end">
+      <button class="btn bo bsm" id="shop-sup-cancel" style="display:none" onclick="shopCancelEditSupplier()">Cancel</button>
+      <button class="btn bp bsm" onclick="shopSaveSupplier()">Save</button>
+    </div>
+  </div>
 </div>
 </main></div>
 
@@ -772,7 +789,7 @@ function wireNav(){
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');$id('panel-'+tab).classList.add('active');
-    if(tab==='shopping')renderShop();
+    if(tab==='shopping'){renderShop();renderShopSuppliers();}
     if(tab==='saved')renderSaved();
     if(tab==='report')renderReport();
     if(tab==='templates')renderTemplates();
@@ -1494,6 +1511,83 @@ function shopToggleAll(v){
   shopSelChange();
 }
 
+function shopGroupQuote(supName){
+  suppLoad();
+  document.querySelectorAll('.line-cb').forEach(cb=>{
+    const sns=cb.dataset.sns;
+    const dbPart=db.parts.find(p=>p.sns_pn===sns);
+    cb.checked=(dbPart?.trade_supplier||'— No Supplier —')===supName;
+  });
+  shopSelChange();
+  openQuoteModal();
+  const sel=$id('quote-supplier');
+  if(sel){
+    const idx=suppliersDB.findIndex(s=>s.name===supName);
+    if(idx>=0){sel.value=String(idx);buildQuoteDraft();}
+  }
+}
+
+let _shopEditSupIdx=-1;
+function renderShopSuppliers(){
+  suppLoad();
+  const wrap=$id('shop-sup-list');if(!wrap)return;
+  if(!suppliersDB.length){
+    wrap.innerHTML='<p style="color:var(--g);font-size:12px;padding:4px 0">No suppliers yet. Click "+ Add New" to add one.</p>';
+    return;
+  }
+  wrap.innerHTML=suppliersDB.map((s,i)=>
+    '<div class="sup-row">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:600;font-size:13px">'+e(s.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--g)">'+e(s.email)+'</div>'+
+      '</div>'+
+      '<button class="btn bo bxs" onclick="shopEditSupplier('+i+')">Edit</button>'+
+      '<button class="btn bxs" style="background:var(--d);color:#fff" onclick="shopDeleteSupplier('+i+')">&#x2715;</button>'+
+    '</div>'
+  ).join('');
+}
+function shopShowAddSupplier(){
+  _shopEditSupIdx=-1;
+  $id('shop-sup-name').value='';$id('shop-sup-email').value='';
+  $id('shop-sup-form-title').textContent='Add Supplier';
+  $id('shop-sup-cancel').style.display='none';
+  $id('shop-sup-form').style.display='';
+  $id('shop-sup-name').focus();
+}
+function shopEditSupplier(i){
+  suppLoad();const s=suppliersDB[i];if(!s)return;
+  _shopEditSupIdx=i;
+  $id('shop-sup-name').value=s.name;$id('shop-sup-email').value=s.email;
+  $id('shop-sup-form-title').textContent='Edit Supplier';
+  $id('shop-sup-cancel').style.display='';
+  $id('shop-sup-form').style.display='';
+  $id('shop-sup-name').focus();
+}
+function shopCancelEditSupplier(){
+  _shopEditSupIdx=-1;
+  $id('shop-sup-form').style.display='none';
+}
+function shopDeleteSupplier(i){
+  delSupplier(i);renderShopSuppliers();renderShop();
+}
+function shopSaveSupplier(){
+  const name=($id('shop-sup-name').value||'').trim();
+  const email=($id('shop-sup-email').value||'').trim();
+  if(!name||!email){alert('Name and email are required.');return;}
+  suppLoad();
+  if(_shopEditSupIdx>=0){
+    suppliersDB[_shopEditSupIdx]={...suppliersDB[_shopEditSupIdx],name,email};
+  } else {
+    suppliersDB.push({id:'sup-'+Date.now(),name,email});
+  }
+  suppSave();
+  _shopEditSupIdx=-1;
+  $id('shop-sup-form').style.display='none';
+  renderSupplierList();
+  renderShopSuppliers();
+  renderShop();
+}
+
 function openSupplierMgr(){
   suppLoad();
   renderSupplierList();
@@ -1687,7 +1781,7 @@ function renderShop(){
   const stockHdr=hasAlloc
     ?'<th class="nr" style="color:#065f46">From Stock</th><th class="nr">To Order</th>'
     :'<th class="nr">In Stock</th><th class="nr">To Buy</th>';
-  const colHdr='<thead><tr><th style="width:28px;padding:4px 6px"><input type="checkbox" id="shop-cb-all" class="shop-cb" title="Select all" onclick="shopToggleAll(this.checked)"></th><th>SNS Part #</th><th class="nr">QTY Req</th>'+stockHdr+'<th>Supplier</th><th>Supplier Code</th><th>Notes</th></tr></thead>';
+  const colHdr='<thead><tr><th style="width:28px;padding:4px 6px"><input type="checkbox" id="shop-cb-all" class="shop-cb" title="Select all" onclick="shopToggleAll(this.checked)"></th><th>SNS Part #</th><th class="nr">QTY Req</th>'+stockHdr+'<th>Supplier Code</th><th>Notes</th></tr></thead>';
   // Consolidate quantities across active sections
   const conMap=new Map();
   let secActive=true;
@@ -1699,9 +1793,17 @@ function renderShop(){
   });
   if(!conMap.size){c.innerHTML='<div class="empty">No active sections with parts.</div>';return;}
   const hasSections=cur.lines.some(l=>l.type==='section');
+  // Group parts by supplier
+  suppLoad();
+  const supGroups=new Map();
+  conMap.forEach(l=>{
+    const dbPart=db.parts.find(p=>p.sns_pn===l.sns_pn);
+    const key=dbPart?.trade_supplier||'— No Supplier —';
+    if(!supGroups.has(key))supGroups.set(key,[]);
+    supGroups.get(key).push(l);
+  });
   function partRow(l){
     const dbPart=db.parts.find(p=>p.sns_pn===l.sns_pn);
-    const sup=dbPart?.trade_supplier||'';
     let stockCell,buyCell;
     if(hasAlloc){
       const fromStock=cur.stockAllocated[l.sns_pn]||0;
@@ -1717,13 +1819,23 @@ function renderShop(){
     return'<tr><td style="padding:4px 6px;text-align:center"><input type="checkbox" class="shop-cb line-cb" data-sns="'+e(l.sns_pn||'')+'" data-qty="'+l.qty+'" onchange="shopSelChange()"></td><td><span class="badge bb">'+e(l.sns_pn)+'</span></td>'+
       '<td class="nr">'+l.qty+'</td>'+
       stockCell+buyCell+
-      '<td>'+e(sup)+'</td>'+
       '<td>'+e(dbPart?.supplier_code||'')+'</td>'+
       '<td><input type="text" placeholder="Notes…" style="width:110px;font-size:11px"></td></tr>';
   }
+  let rows='';
+  supGroups.forEach((parts,supName)=>{
+    const supObj=suppliersDB.find(s=>s.name===supName);
+    const hasEmail=!!supObj?.email;
+    const quoteBtn=hasEmail
+      ?'<button class="btn bsm" style="background:rgba(255,255,255,.18);color:#fff;padding:2px 9px;font-size:11px;border:1px solid rgba(255,255,255,.35);margin-left:8px;float:right" onclick="shopGroupQuote(''+supName.replace(/\/g,'\\').replace(/'/g,"\'")+'')" >✉️ Quote</button>'
+      :'';
+    const emailLabel=hasEmail?'<span style="font-weight:400;font-size:11px;opacity:.75"> &lt;'+e(supObj.email)+'&gt;</span>':'';
+    rows+='<tr><td colspan="6" style="background:var(--p);color:#fff;font-weight:700;font-size:12px;padding:7px 10px">'+e(supName)+emailLabel+quoteBtn+'</td></tr>';
+    rows+=parts.map(partRow).join('');
+  });
   const allocNote=hasAlloc?'<p style="font-size:11px;color:#065f46;margin-bottom:6px;font-weight:600">✅ Stock allocated — green column shows units pulled from inventory; To Order is the remaining purchase qty.</p>':'';
   const consolidatedNote=hasSections?'<p style="font-size:11px;color:var(--g);margin-bottom:6px;font-style:italic">Quantities consolidated across all active sections.</p>':'';
-  const body=allocNote+consolidatedNote+'<div class="tw"><table>'+colHdr+'<tbody>'+[...conMap.values()].map(partRow).join('')+'</tbody></table></div>';
+  const body=allocNote+consolidatedNote+'<div class="tw"><table>'+colHdr+'<tbody>'+rows+'</tbody></table></div>';
   c.innerHTML=hdr+body;
   document.querySelectorAll('.stk-inp').forEach(inp=>{
     inp.addEventListener('input',function(){
